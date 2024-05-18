@@ -1,0 +1,8 @@
+venv/
+.idea/
+__pycache__/
+draft-notes.txt
+log.json
+*.ipynb
+notebooks/
+slajdy/
