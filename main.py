@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 
 
 app = FastAPI()
@@ -27,3 +27,11 @@ def get_tasks():
 @app.get("/users")
 def get_users():
     return {"result": users_data}
+
+
+@app.post("/tasks")
+def create_task(body: dict = Body(...)):
+    new_task = body
+    tasks_data.append(new_task)
+
+    return {"message": "New task added", "details": new_task}
