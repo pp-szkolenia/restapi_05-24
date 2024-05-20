@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 import random
 
@@ -64,6 +64,10 @@ def get_task_by_id(id_: int):
 @app.get("/users/{id_}")
 def get_user_by_id(id_: int):
     target_user = get_item_by_id(users_data, id_)
+    if target_user is None:
+        message = {"error": f"User with id {id_} does not exist!"}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
+
     return {"result": target_user}
 
 
