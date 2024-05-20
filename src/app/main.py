@@ -5,7 +5,11 @@ from fastapi.responses import JSONResponse
 from app.routers import tasks, users
 
 
-app = FastAPI()
+app = FastAPI(docs_url="/api/docs",
+              redoc_url="/api/redoc",
+              title="Task manager API",
+              description="API for managing tasks",
+              version="1.0.2")
 
 app.include_router(users.router)
 app.include_router(tasks.router)

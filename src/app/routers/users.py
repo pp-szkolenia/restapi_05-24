@@ -14,12 +14,12 @@ users_data = [
 ]
 
 
-@router.get("/users")
+@router.get("/users", description="Get all users", tags=["users"])
 def get_users():
     return JSONResponse(status_code=status.HTTP_200_OK, content={"result": users_data})
 
 
-@router.get("/users/{id_}")
+@router.get("/users/{id_}", tags=["users"])
 def get_user_by_id(id_: int):
     target_user = get_item_by_id(users_data, id_)
     if target_user is None:
@@ -29,7 +29,8 @@ def get_user_by_id(id_: int):
     return JSONResponse(status_code=status.HTTP_200_OK, content={"result": target_user})
 
 
-@router.post("/users", status_code=status.HTTP_201_CREATED)
+@router.post("/users", status_code=status.HTTP_201_CREATED, tags=["users"],
+             description="This endpoint adds a new user")
 def create_user(body: UserBody):
     new_user = body.model_dump()
     random_id = random.randint(1, 10000)
@@ -39,7 +40,7 @@ def create_user(body: UserBody):
     return {"message": "New user added", "details": new_user}
 
 
-@router.delete("/users/{id_}")
+@router.delete("/users/{id_}", tags=["users"])
 def delete_user_by_id(id_: int):
     target_index = get_item_index_by_id(users_data, id_)
 
@@ -51,7 +52,7 @@ def delete_user_by_id(id_: int):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put("/users/{id_}")
+@router.put("/users/{id_}", tags=["users"])
 def update_user_by_id(id_: int, body: UserBody):
     target_index = get_item_index_by_id(users_data, id_)
 
