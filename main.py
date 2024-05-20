@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI
 from pydantic import BaseModel
 import random
 
@@ -53,6 +53,12 @@ def get_tasks():
 @app.get("/users")
 def get_users():
     return {"result": users_data}
+
+
+@app.get("/tasks/{id_}")
+def get_task_by_id(id_: int):
+    target_task = get_item_by_id(tasks_data, id_)
+    return {"result": target_task}
 
 
 @app.get("/users/{id_}")
