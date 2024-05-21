@@ -1,100 +1,70 @@
-from fastapi.responses import JSONResponse
-from fastapi import status, APIRouter, HTTPException, Response
-
+from fastapi import status, APIRouter, HTTPException, Response, Depends
 
 from app.models import TaskBody
-from db.utils import connect_to_db
+from sqlalchemy.orm import Session
+from db.orm import get_session
+from db.models import TasksTable
 
 
 router = APIRouter()
 
 
 @router.get("/tasks", tags=["tasks"])
-def get_tasks():
-    conn, cursor = connect_to_db()
+def get_tasks(session: Session = Depends(get_session)):
+    tasks_data = session.query(TasksTable).all()
 
-    cursor.execute("SELECT * FROM tasks")
-    tasks_data = cursor.fetchall()
-
-    conn.close()
-    cursor.close()
-
-    return JSONResponse(status_code=status.HTTP_201_CREATED, content={"result": tasks_data})
+    return {"result": tasks_data}
 
 
 @router.get("/tasks/{id_}", tags=["tasks"])
-def get_task_by_id(id_: int):
-    conn, cursor = connect_to_db()
-
-    cursor.execute("SELECT * FROM tasks WHERE id = %s", (id_,))
-    target_task = cursor.fetchone()
-
-    conn.close()
-    cursor.close()
+def get_task_by_id(id_: int, session: Session = Depends(get_session)):
+    target_task = session.query(TasksTable).filter_by(id_number=id_).first()
 
     if target_task is None:
         message = {"error": f"Task with id {id_} does not exist!"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content={"result": target_task})
+    return {"result": target_task}
 
 
 @router.post("/tasks", status_code=status.HTTP_201_CREATED, tags=["tasks"])
-def create_task(body: TaskBody):
-    conn, cursor = connect_to_db()
+def create_task(body: TaskBody, session: Session = Depends(get_session)):
+    task_dict = body.model_dump()
+    new_task = TasksTable(**task_dict)
 
-    insert_query_template = f"""INSERT INTO tasks (description, priority, is_complete)
-                                VALUES (%s, %s, %s) RETURNING *"""
-    insert_query_values = (body.description, body.priority, body.is_complete)
-
-    cursor.execute(insert_query_template, insert_query_values)
-    new_task = cursor.fetchone()
-    conn.commit()
-
-    conn.close()
-    cursor.close()
+    session.add(new_task)
+    session.commit()
+    session.refresh(new_task)
 
     return {"message": "New task added", "details": new_task}
 
 
 @router.delete("/tasks/{id_}", tags=["tasks"])
-def delete_task_by_id(id_: int):
-    conn, cursor = connect_to_db()
-
-    delete_query = "DELETE FROM tasks WHERE id = %s RETURNING *"
-
-    cursor.execute(delete_query, (id_,))
-    deleted_task = cursor.fetchone()
-    conn.commit()
-
-    conn.close()
-    cursor.close()
+def delete_task_by_id(id_: int, session: Session = Depends(get_session)):
+    deleted_task = session.query(TasksTable).filter_by(id_number=id_).first()
 
     if not deleted_task:
         message = {"error": f"Task with id {id_} does not exist"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
+    session.delete(deleted_task)
+    session.commit()
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/tasks/{id_}", tags=["tasks"])
-def update_task_by_id(id_: int, body: TaskBody):
-    conn, cursor = connect_to_db()
+def update_task_by_id(id_: int, body: TaskBody, session: Session = Depends(get_session)):
+    filter_query = session.query(TasksTable).filter_by(id_number=id_)
 
-    update_query_template = """UPDATE tasks SET description = %s, priority = %s, is_complete = %s
-                               WHERE id = %s RETURNING *"""
-    update_query_values = (body.description, body.priority, body.is_complete, id_)
-
-    cursor.execute(update_query_template, update_query_values)
-    updated_task = cursor.fetchone()
-    conn.commit()
-
-    conn.close()
-    cursor.close()
-
-    if not updated_task:
+    if not filter_query.first():
         message = {"error": f"Task with id {id_} does not exist"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
+    filter_query.update(body.model_dump())
+    session.commit()
+
+    updated_task = filter_query.first()
+
     message = {"message": f"Task with id {id_} updated", "new_value": updated_task}
-    return JSONResponse(status_code=status.HTTP_200_OK, content=message)
+    return message
