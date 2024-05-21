@@ -1,99 +1,72 @@
 from fastapi.responses import JSONResponse
-from fastapi import status, APIRouter, HTTPException, Response
+from fastapi import status, APIRouter, HTTPException, Response, Depends
 
 from app.models import UserBody
 from db.utils import connect_to_db
+from sqlalchemy.orm import Session
+from db.orm import get_session
+from db.models import UsersTable
 
 
 router = APIRouter()
 
 
 @router.get("/users", description="Get all users", tags=["users"])
-def get_users():
-    conn, cursor = connect_to_db()
+def get_users(session: Session = Depends(get_session)):
+    users_data = session.query(UsersTable).all()
 
-    cursor.execute("SELECT * FROM users")
-    users_data = cursor.fetchall()
-
-    conn.close()
-    cursor.close()
-
-    return JSONResponse(status_code=status.HTTP_200_OK, content={"result": users_data})
+    return {"result": users_data}
 
 
 @router.get("/users/{id_}", tags=["users"])
-def get_user_by_id(id_: int):
-    conn, cursor = connect_to_db()
-
-    cursor.execute("SELECT * FROM users WHERE id = %s", (id_,))
-    target_user = cursor.fetchone()
-
-    conn.close()
-    cursor.close()
+def get_user_by_id(id_: int, session: Session = Depends(get_session)):
+    target_user = session.query(UsersTable).filter_by(id_number=id_).first()
 
     if not target_user:
         message = {"error": f"User with id {id_} does not exist!"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
-    return JSONResponse(status_code=status.HTTP_200_OK, content={"result": target_user})
+    return {"result": target_user}
 
 
 @router.post("/users", status_code=status.HTTP_201_CREATED, tags=["users"],
              description="This endpoint adds a new user")
-def create_user(body: UserBody):
-    conn, cursor = connect_to_db()
-
-    insert_query_template = """INSERT INTO users (username, password, is_admin)
-                               VALUES (%s, %s, %s) RETURNING *"""
-    insert_query_values = (body.username, body.password, body.is_admin)
-
-    cursor.execute(insert_query_template, insert_query_values)
-    new_user = cursor.fetchone()
-    conn.commit()
-
-    conn.close()
-    cursor.close()
+def create_user(body: UserBody, session: Session = Depends(get_session)):
+    user_dict = body.model_dump()
+    new_user = UsersTable(**user_dict)
+    session.add(new_user)
+    session.commit()
+    session.refresh(new_user)
 
     return {"message": "New user added", "details": new_user}
 
 
 @router.delete("/users/{id_}", tags=["users"])
-def delete_user_by_id(id_: int):
-    conn, cursor = connect_to_db()
-
-    delete_query = "DELETE FROM users WHERE id = %s RETURNING *"
-    cursor.execute(delete_query, (id_,))
-    deleted_user = cursor.fetchone()
-    conn.commit()
-
-    conn.close()
-    cursor.close()
+def delete_user_by_id(id_: int, session: Session = Depends(get_session)):
+    deleted_user = session.query(UsersTable).filter_by(id_number=id_).first()
 
     if not deleted_user:
         message = {"error": f"User with id {id_} does not exist"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
+    session.delete(deleted_user)
+    session.commit()
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/users/{id_}", tags=["users"])
-def update_user_by_id(id_: int, body: UserBody):
-    conn, cursor = connect_to_db()
+def update_user_by_id(id_: int, body: UserBody, session: Session = Depends(get_session)):
+    filter_query = session.query(UsersTable).filter_by(id_number=id_)
 
-    update_query_template = """UPDATE users SET username = %s, password = %s, is_admin = %s
-                               WHERE id = %s RETURNING *"""
-    update_query_values = (body.username, body.password, body.is_admin, id_)
-
-    cursor.execute(update_query_template, update_query_values)
-    updated_user = cursor.fetchone()
-    conn.commit()
-
-    conn.close()
-    cursor.close()
-
-    if not updated_user:
+    if not filter_query.first():
         message = {"error": f"User with id {id_} does not exist"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
+    filter_query.update(body.model_dump())
+    session.commit()
+
+    updated_user = filter_query.first()
+
     message = {"message": f"User with id {id_} updated", "new_value": updated_user}
-    return JSONResponse(status_code=status.HTTP_200_OK, content=message)
+    return message

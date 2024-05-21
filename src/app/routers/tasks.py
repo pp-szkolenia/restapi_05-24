@@ -1,8 +1,7 @@
 from fastapi.responses import JSONResponse
 from fastapi import status, APIRouter, HTTPException, Response
-import random
 
-from app.utils import get_item_by_id, get_item_index_by_id
+
 from app.models import TaskBody
 from db.utils import connect_to_db
 
