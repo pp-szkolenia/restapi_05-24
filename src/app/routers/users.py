@@ -1,12 +1,14 @@
 from fastapi import status, APIRouter, HTTPException, Response, Depends
 
 from app.models import (UserBody, UserResponse, GetAllUsersResponse, GetSingleUserResponse,
-                        PostUserResponse, PutUserResponse, SortOrders, PutUserNoValueResponse)
+                        PostUserResponse, PutUserResponse, SortOrders, PutUserNoValueResponse,
+                        TokenData)
 from sqlalchemy.orm import Session
 from sqlalchemy import func, asc, desc
 from db.orm import get_session
 from db.models import UsersTable
 from app.utils import hash_password_in_body
+from app import oauth2
 
 
 router = APIRouter()
@@ -15,7 +17,12 @@ router = APIRouter()
 @router.get("/users", description="Get all users", tags=["users"],
             response_model=GetAllUsersResponse)
 def get_users(session: Session = Depends(get_session), is_admin: bool | None = None,
-              password_limit: int = None, sort_username: SortOrders = None):
+              password_limit: int = None, sort_username: SortOrders = None,
+              user_data: TokenData = Depends(oauth2.get_current_user)):
+    if not user_data.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Only admin can perform this operation")
+
     users_query = session.query(UsersTable)
 
     if is_admin is not None:
@@ -72,7 +79,12 @@ def create_user(body: UserBody, session: Session = Depends(get_session)):
 
 
 @router.delete("/users/{id_}", tags=["users"])
-def delete_user_by_id(id_: int, session: Session = Depends(get_session)):
+def delete_user_by_id(id_: int, session: Session = Depends(get_session),
+                      user_data: TokenData = Depends(oauth2.get_current_user)):
+    if not (user_data.is_admin or user_data.user_id == id_):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="You cannot perform this operation")
+
     deleted_user = session.query(UsersTable).filter_by(id_number=id_).first()
 
     if not deleted_user:
