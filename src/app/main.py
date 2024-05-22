@@ -2,7 +2,7 @@ from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 
 
-from app.routers import tasks, users
+from app.routers import tasks, users, auth
 
 
 app = FastAPI(docs_url="/api/docs",
@@ -13,6 +13,7 @@ app = FastAPI(docs_url="/api/docs",
 
 app.include_router(users.router)
 app.include_router(tasks.router)
+app.include_router(auth.router)
 
 
 @app.get("/")
