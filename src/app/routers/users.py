@@ -1,8 +1,7 @@
-from fastapi.responses import JSONResponse
 from fastapi import status, APIRouter, HTTPException, Response, Depends
 
-from app.models import UserBody
-from db.utils import connect_to_db
+from app.models import (UserBody, UserResponse, GetAllUsersResponse, GetSingleUserResponse,
+                        PostUserResponse, PutUserResponse)
 from sqlalchemy.orm import Session
 from db.orm import get_session
 from db.models import UsersTable
@@ -11,14 +10,19 @@ from db.models import UsersTable
 router = APIRouter()
 
 
-@router.get("/users", description="Get all users", tags=["users"])
+@router.get("/users", description="Get all users", tags=["users"],
+            response_model=GetAllUsersResponse)
 def get_users(session: Session = Depends(get_session)):
     users_data = session.query(UsersTable).all()
+
+    users_data = [UserResponse(id_=user.id_number, username=user.username,
+                               password=user.password, is_admin=user.is_admin)
+                  for user in users_data]
 
     return {"result": users_data}
 
 
-@router.get("/users/{id_}", tags=["users"])
+@router.get("/users/{id_}", tags=["users"], response_model=GetSingleUserResponse)
 def get_user_by_id(id_: int, session: Session = Depends(get_session)):
     target_user = session.query(UsersTable).filter_by(id_number=id_).first()
 
@@ -26,17 +30,23 @@ def get_user_by_id(id_: int, session: Session = Depends(get_session)):
         message = {"error": f"User with id {id_} does not exist!"}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message)
 
+    target_user = UserResponse(id_=target_user.id_number, username=target_user.username,
+                               password=target_user.password, is_admin=target_user.is_admin)
+
     return {"result": target_user}
 
 
 @router.post("/users", status_code=status.HTTP_201_CREATED, tags=["users"],
-             description="This endpoint adds a new user")
+             description="This endpoint adds a new user", response_model=PostUserResponse)
 def create_user(body: UserBody, session: Session = Depends(get_session)):
     user_dict = body.model_dump()
     new_user = UsersTable(**user_dict)
     session.add(new_user)
     session.commit()
     session.refresh(new_user)
+
+    new_user = UserResponse(id_=new_user.id_number, username=new_user.username,
+                            password=new_user.password, is_admin=new_user.is_admin)
 
     return {"message": "New user added", "details": new_user}
 
@@ -55,7 +65,7 @@ def delete_user_by_id(id_: int, session: Session = Depends(get_session)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put("/users/{id_}", tags=["users"])
+@router.put("/users/{id_}", tags=["users"], response_model=PutUserResponse)
 def update_user_by_id(id_: int, body: UserBody, session: Session = Depends(get_session)):
     filter_query = session.query(UsersTable).filter_by(id_number=id_)
 
@@ -67,6 +77,9 @@ def update_user_by_id(id_: int, body: UserBody, session: Session = Depends(get_s
     session.commit()
 
     updated_user = filter_query.first()
+
+    updated_user = UserResponse(id_=updated_user.id_number, username=updated_user.username,
+                                password=updated_user.password, is_admin=updated_user.is_admin)
 
     message = {"message": f"User with id {id_} updated", "new_value": updated_user}
     return message
