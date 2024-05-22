@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, asc, desc
 from db.orm import get_session
 from db.models import UsersTable
+from app.utils import hash_password_in_body
 
 
 router = APIRouter()
@@ -57,6 +58,7 @@ def get_user_by_id(id_: int, session: Session = Depends(get_session)):
 @router.post("/users", status_code=status.HTTP_201_CREATED, tags=["users"],
              description="This endpoint adds a new user", response_model=PostUserResponse)
 def create_user(body: UserBody, session: Session = Depends(get_session)):
+    body = hash_password_in_body(body)
     user_dict = body.model_dump()
     new_user = UsersTable(**user_dict)
     session.add(new_user)
@@ -86,6 +88,7 @@ def delete_user_by_id(id_: int, session: Session = Depends(get_session)):
 @router.put("/users/{id_}", tags=["users"], response_model=PutUserResponse | PutUserNoValueResponse)
 def update_user_by_id(id_: int, body: UserBody, session: Session = Depends(get_session),
                       show_user: bool = True):
+    body = hash_password_in_body(body)
     filter_query = session.query(UsersTable).filter_by(id_number=id_)
 
     if not filter_query.first():
