@@ -1,11 +1,13 @@
 from fastapi import status, APIRouter, HTTPException, Response, Depends
 
 from app.models import (TaskBody, TaskResponse, GetAllTasksResponse, GetSingleTaskResponse,
-                        PostTaskResponse, PutTaskResponse, SortOrders, PostTaskNoDetailsResponse)
+                        PostTaskResponse, PutTaskResponse, SortOrders, PostTaskNoDetailsResponse,
+                        TokenData)
 from sqlalchemy.orm import Session
 from sqlalchemy import between, asc, desc
 from db.orm import get_session
 from db.models import TasksTable
+from app import oauth2
 
 
 router = APIRouter()
@@ -55,7 +57,8 @@ def get_task_by_id(id_: int, session: Session = Depends(get_session)):
 
 @router.post("/tasks", status_code=status.HTTP_201_CREATED, tags=["tasks"],
              response_model=PostTaskResponse | PostTaskNoDetailsResponse)
-def create_task(body: TaskBody, session: Session = Depends(get_session), show_task: bool = True):
+def create_task(body: TaskBody, session: Session = Depends(get_session), show_task: bool = True,
+                user_data: TokenData = Depends(oauth2.get_current_user)):
     task_dict = body.model_dump()
     new_task = TasksTable(**task_dict)
 
@@ -67,13 +70,14 @@ def create_task(body: TaskBody, session: Session = Depends(get_session), show_ta
                             priority=new_task.priority, is_complete=new_task.is_complete)
 
     if show_task:
-        return {"message": "New task added", "details": new_task}
+        return {"message": f"New task added by user {user_data.user_id}", "details": new_task}
     else:
-        return {"message": "new task added"}
+        return {"message": "new task added by user {user_data.user_id}"}
 
 
 @router.delete("/tasks/{id_}", tags=["tasks"])
-def delete_task_by_id(id_: int, session: Session = Depends(get_session)):
+def delete_task_by_id(id_: int, session: Session = Depends(get_session),
+                      _: TokenData = Depends(oauth2.get_current_user)):
     deleted_task = session.query(TasksTable).filter_by(id_number=id_).first()
 
     if not deleted_task:
@@ -87,7 +91,8 @@ def delete_task_by_id(id_: int, session: Session = Depends(get_session)):
 
 
 @router.put("/tasks/{id_}", tags=["tasks"], response_model=PutTaskResponse)
-def update_task_by_id(id_: int, body: TaskBody, session: Session = Depends(get_session)):
+def update_task_by_id(id_: int, body: TaskBody, session: Session = Depends(get_session),
+                      user_data: TokenData = Depends(oauth2.get_current_user)):
     filter_query = session.query(TasksTable).filter_by(id_number=id_)
 
     if not filter_query.first():
@@ -102,5 +107,6 @@ def update_task_by_id(id_: int, body: TaskBody, session: Session = Depends(get_s
     updated_task = TaskResponse(id_=updated_task.id_number, description=updated_task.description,
                                 priority=updated_task.priority, is_complete=updated_task.is_complete)
 
-    message = {"message": f"Task with id {id_} updated", "new_value": updated_task}
+    message = {"message": f"Task with id {id_} updated by user {user_data.user_id}",
+               "new_value": updated_task}
     return message
